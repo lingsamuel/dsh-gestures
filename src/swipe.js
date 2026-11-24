@@ -26,8 +26,12 @@ export function selectGestures(origin, x, width, { leftOpen, rightOpen, overlay,
   return [left, right].filter(Boolean)
 }
 
+export function isHorizontal(dx, dy, distance) {
+  return Math.abs(dx) >= Math.max(distance, Math.abs(dy) * 1.5)
+}
+
 export function isDirectedHorizontally(gesture, dx, dy, distance) {
-  return dx * gesture.direction >= Math.max(distance, Math.abs(dy) * 1.5)
+  return Math.sign(dx) === gesture.direction && isHorizontal(dx, dy, distance)
 }
 
 /** 距离和方向足以区分滑动与轻微位移，快速手势也能触发。 */

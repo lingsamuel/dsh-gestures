@@ -99,6 +99,12 @@ try {
     await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))
   }
 
+  function browserMenuAllowed(x, y, button = 2) {
+    return frame.evaluate((element, { x, y, button }) => element.dispatchEvent(new MouseEvent('contextmenu', {
+      bubbles: true, cancelable: true, button, clientX: x, clientY: y,
+    })), { x, y, button })
+  }
+
   async function leftIs(open) {
     await page.waitForFunction(expected => {
       const frame = document.querySelector('[data-shell-bottom]')?.parentElement
@@ -242,6 +248,9 @@ try {
   await rightDrag(43, 574, 12)
   await leftIs(false)
   const trail = page.locator('[data-dsh-gestures-trail]')
+  await rightDrag(500, 574, 40)
+  assert.equal(await browserMenuAllowed(540, 574), false, '已经进入手势的短拖也应拦截松开后到达的浏览器菜单')
+  await leftIs(false)
   await page.mouse.move(500, 574)
   await page.mouse.down({ button: 'right' })
   assert.equal(await trail.count(), 0)
@@ -256,6 +265,37 @@ try {
   await page.mouse.up({ button: 'right' })
   await trail.waitFor({ state: 'detached' })
   await leftIs(true)
+  assert.equal(await browserMenuAllowed(620, 574), false, '侧栏已切换后仍应拦截同一次拖动的浏览器菜单')
+  assert.equal(await browserMenuAllowed(620, 574, 0), true, '键盘菜单应保留默认行为')
+  assert.equal(await frame.evaluate(element => {
+    const editor = document.createElement('textarea')
+    element.append(editor)
+    const mouse = { bubbles: true, cancelable: true, button: 2 }
+    editor.dispatchEvent(new MouseEvent('mousedown', { ...mouse, buttons: 2 }))
+    editor.dispatchEvent(new MouseEvent('mouseup', mouse))
+    const allowed = editor.dispatchEvent(new MouseEvent('contextmenu', mouse))
+    editor.remove()
+    return allowed
+  }), true, '下一次右键点击应重新判断菜单归属')
+  await page.mouse.move(430, 574)
+  await page.mouse.down({ button: 'right' })
+  await page.mouse.move(540, 574)
+  await trail.waitFor()
+  await page.mouse.up({ button: 'right' })
+  await trail.waitFor({ state: 'detached' })
+  await leftIs(true)
+  assert.equal(await browserMenuAllowed(540, 574), false, '无可执行动作的拖动也应吞掉同次浏览器菜单')
+
+  const closeLeft = page.getByRole('switch', { name: 'Close left sidebar' })
+  await closeLeft.click()
+  await page.mouse.move(430, 574)
+  await page.mouse.down({ button: 'right' })
+  await page.mouse.move(320, 574)
+  await trail.waitFor()
+  await page.mouse.up({ button: 'right' })
+  await trail.waitFor({ state: 'detached' })
+  await leftIs(true)
+  await closeLeft.click()
   // 在 Linux Chromium 的真实按下顺序之外，覆盖松开后才分发菜单事件的平台顺序。
   const handledLateMenu = await page.evaluate(async () => {
     const target = document.elementFromPoint(205, 574)
@@ -320,6 +360,24 @@ try {
   await rightDrag(sidebarChrome.x, sidebarChrome.y, 95)
   await rightOpen.waitFor({ state: 'hidden' })
   await leftIs(true)
+
+  const divider = frame.locator('[data-side="sidebar"]:visible')
+  const startingDivider = await divider.boundingBox()
+  assert.ok(startingDivider)
+  const y = startingDivider.y + startingDivider.height / 2
+  await page.mouse.move(startingDivider.x + startingDivider.width / 2, y)
+  await page.mouse.down({ button: 'left' })
+  await page.mouse.move(startingDivider.x + startingDivider.width / 2 + 32, y)
+  await page.mouse.up({ button: 'left' })
+  const resizedDivider = await divider.boundingBox()
+  assert.ok(resizedDivider && resizedDivider.x > startingDivider.x + 20, '左键仍应调整侧栏宽度')
+  const dividerX = resizedDivider.x + resizedDivider.width / 2
+  await page.mouse.move(dividerX, y)
+  await page.mouse.down({ button: 'right' })
+  await page.mouse.move(dividerX - 90, y)
+  await trail.waitFor()
+  await page.mouse.up({ button: 'right' })
+  await leftIs(false)
 
   await showPluginSettings()
   await plugin('remove', pkg.name)

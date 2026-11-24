@@ -5,7 +5,12 @@ const SYSTEM_EDGE_INSET = 24
 const interactive = [
   'input', 'textarea', 'select', '[contenteditable]:not([contenteditable="false"])', '[role="textbox"]',
   '[role="slider"]', '[data-dockkit-float]', '[data-dockkit-divider]',
-  '[data-side="sidebar"]', '[data-side="rightbar"]', '[data-width-handle]', 'iframe', 'canvas',
+  'iframe', 'canvas',
+].join(', ')
+
+const primaryDrag = [
+  '[draggable="true"]', '[data-dockkit-tab]',
+  '[data-side="sidebar"]', '[data-side="rightbar"]', '[data-width-handle]',
 ].join(', ')
 
 function scrollsHorizontally(element, frame) {
@@ -24,8 +29,8 @@ function hasOtherOverlay(leftDrawer) {
 export function candidateAt(ctx, preferences, target, x, input) {
   const frame = document.querySelector('[data-rightbar-col]')?.parentElement
   if (!frame || !frame.contains(target) || target.closest(interactive)) return
-  // 原生拖放与 Dockkit 标签使用主指针，鼠标右键由页面菜单决定是否接管。
-  if (input === 'touch' && target.closest('[draggable="true"], [data-dockkit-tab]')) return
+  // 栏宽拖柄、原生拖放和 Dockkit 标签都使用主指针，右键可直接发起手势。
+  if (input === 'touch' && target.closest(primaryDrag)) return
   const narrow = frame.hasAttribute('data-sidebar-drawer')
   if ((!preferences.wide && !narrow) || (input === 'mouse' && narrow)) return
 
@@ -53,7 +58,8 @@ export function candidateAt(ctx, preferences, target, x, input) {
   const gestures = selectGestures(origin, x, width, {
     leftOpen, rightOpen, overlay, leftAvailable: Boolean(leftToggle), rightAvailable: Boolean(rightPanel),
   }, input).filter(gesture => preferences[gesture.key] && !(atSystemEdge && gesture.open))
-  if (gestures.length === 0 || (input === 'touch' && scrollsHorizontally(target, frame))) return
+  // 鼠标轨迹独立于可执行动作。触屏需要有实际可用动作才占用滑动。
+  if (input === 'touch' && (gestures.length === 0 || scrollsHorizontally(target, frame))) return
   return { gestures, frame, narrow, rightSession, leftOpen, rightOpen }
 }
 

@@ -1,5 +1,5 @@
 import { candidateAt, togglePanel } from './panels.js'
-import { isDirectedHorizontally, matchesSwipe } from './swipe.js'
+import { isDirectedHorizontally, isHorizontal, matchesSwipe } from './swipe.js'
 import { createMouseTrail } from './trail.js'
 
 const INTENT_DISTANCE = 12
@@ -15,6 +15,8 @@ export function installInput(ctx, preferences) {
   const trail = createMouseTrail()
   let pending
   let releaseFrame
+  // 浏览器菜单可能晚于松手和面板更新。记住这次右键的归属，直到下次按下。
+  let mouseDragClaimed = false
 
   function cancel() {
     pending = undefined
@@ -88,6 +90,7 @@ export function installInput(ctx, preferences) {
   }
 
   function onMouseDown(event) {
+    mouseDragClaimed = false
     if (event.button === 2 && event.buttons === 2) start(event, event, 'mouse')
     else if (pending?.input === 'mouse') cancel()
   }
@@ -96,11 +99,11 @@ export function installInput(ctx, preferences) {
     const active = pending
     if (active?.input !== 'mouse' || releaseFrame !== undefined) return
     if (event.buttons !== 2 || menuHandled(active) || !stillAvailable(active)) return cancel()
-    if (!active.drawing) {
+    if (!mouseDragClaimed) {
       const dx = event.clientX - active.x
       const dy = event.clientY - active.y
-      if (!active.gestures.some(gesture => isDirectedHorizontally(gesture, dx, dy, INTENT_DISTANCE))) return
-      active.drawing = true
+      if (!isHorizontal(dx, dy, INTENT_DISTANCE)) return
+      mouseDragClaimed = true
     }
     trail.draw(active.x, active.y, event.clientX, event.clientY)
   }
@@ -111,6 +114,7 @@ export function installInput(ctx, preferences) {
     trail.clear()
     const gesture = active.gestures.find(gesture => qualifies(active, gesture, event))
     if (!gesture || !stillAvailable(active, gesture)) return cancel()
+    mouseDragClaimed = true
 
     // 部分浏览器先发 mouseup，再派发同次右键的 contextmenu。让页面先完成菜单处理。
     releaseFrame = window.requestAnimationFrame(() => {
@@ -126,18 +130,21 @@ export function installInput(ctx, preferences) {
 
   function handleBrowserMenu(event) {
     const active = pending
-    if (!active || event !== active.menuEvent) return
-    active.menuReachedWindow = true
-    if (event.defaultPrevented || !stillAvailable(active)) return
-    // 在页面冒泡处理之后，只压住会中断当前候选手势的浏览器菜单。
+    const matchesCandidate = event === active?.menuEvent
+    if (matchesCandidate) active.menuReachedWindow = true
+    if (event.defaultPrevented) return
+    const matchesDrag = mouseDragClaimed && event.button === 2
+    if (!matchesDrag && !(matchesCandidate && stillAvailable(active))) return
+    // 让页面先处理菜单。右键已经用于拖动时，松手后的浏览器菜单也属于同一次输入。
     event.preventDefault()
-    active.browserMenuSuppressed = true
+    if (matchesCandidate) active.browserMenuSuppressed = true
   }
 
   const capture = { capture: true, signal: lifetime.signal }
   window.addEventListener('touchstart', onTouchStart, { ...capture, passive: true })
   window.addEventListener('touchend', onTouchEnd, { ...capture, passive: false })
   window.addEventListener('touchcancel', cancel, capture)
+  window.addEventListener('pointerdown', () => { mouseDragClaimed = false }, capture)
   window.addEventListener('mousedown', onMouseDown, capture)
   window.addEventListener('mousemove', onMouseMove, { ...capture, passive: true })
   window.addEventListener('mouseup', onMouseUp, capture)
