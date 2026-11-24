@@ -1,6 +1,6 @@
 # DSH Gestures
 
-DeepSeek Harness Web 插件，为原生左侧导航栏和右侧工具栏提供触屏滑动与可选的宽屏右键拖动。
+DeepSeek Harness Web 插件，提供侧栏横滑、会话到顶和到底手势，支持触屏与可选的宽屏右键拖动。
 
 [安装和使用手册](manual/使用手册.md)
 

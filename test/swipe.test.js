@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { matchesSwipe, selectGestures } from '../src/swipe.js'
+import { matchesSwipe, matchTwoFingerSwipe, selectGestures, scrollGestures, fingersSpreading } from '../src/swipe.js'
 
 const closed = { leftOpen: false, rightOpen: false, leftAvailable: true, rightAvailable: true }
 
@@ -50,4 +50,25 @@ test('触屏快速滑动可触发，但轻扫和反向滑动忽略', () => {
   assert.equal(matchesSwipe(gesture, 60, 12, 'touch'), true)
   assert.equal(matchesSwipe(gesture, 20, 12, 'touch'), false)
   assert.equal(matchesSwipe(gesture, -80, 4, 'touch'), false)
+})
+
+test('宽屏右键上拖到顶，下拖到底，横拖不算滚动手势', () => {
+  const [top, bottom] = scrollGestures
+  assert.equal(matchesSwipe(top, 9, -75, 'mouse'), true)
+  assert.equal(matchesSwipe(top, 0, 80, 'mouse'), false)
+  assert.equal(matchesSwipe(bottom, 8, 70, 'mouse'), true)
+  assert.equal(matchesSwipe(bottom, 80, 65, 'mouse'), false)
+})
+
+test('两个触点均需同方向移动足够距离，缩放不进入定位手势', () => {
+  const start = [{ clientX: 120, clientY: 250 }, { clientX: 190, clientY: 260 }]
+  const points = (first, second, shift = 0) => [
+    { clientX: 120 - shift, clientY: 250 + first }, { clientX: 190 + shift, clientY: 260 + second },
+  ]
+  assert.equal(matchTwoFingerSwipe(scrollGestures, start, points(-88, -84))?.key, 'scrollTop')
+  assert.equal(matchTwoFingerSwipe(scrollGestures, start, points(81, 84))?.key, 'scrollBottom')
+  assert.equal(matchTwoFingerSwipe(scrollGestures, start, points(80, 30)), undefined)
+  assert.equal(matchTwoFingerSwipe(scrollGestures, start, points(80, -80)), undefined)
+  assert.equal(fingersSpreading(start, points(-85, -84, 25)), true)
+  assert.equal(matchTwoFingerSwipe(scrollGestures, start, points(-85, -84, 25)), undefined)
 })

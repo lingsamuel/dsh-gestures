@@ -2,6 +2,10 @@ const openLeft = { key: 'openLeft', side: 'left', direction: 1, open: true }
 const closeLeft = { key: 'closeLeft', side: 'left', direction: -1, open: false }
 const openRight = { key: 'openRight', side: 'right', direction: -1, open: true }
 const closeRight = { key: 'closeRight', side: 'right', direction: 1, open: false }
+export const scrollGestures = [
+  { key: 'scrollTop', axis: 'y', direction: -1 },
+  { key: 'scrollBottom', axis: 'y', direction: 1 },
+]
 
 const EDGE_WIDTH = 64
 
@@ -36,5 +40,26 @@ export function isDirectedHorizontally(gesture, dx, dy, distance) {
 
 /** 距离和方向足以区分滑动与轻微位移，快速手势也能触发。 */
 export function matchesSwipe(gesture, dx, dy, input) {
-  return isDirectedHorizontally(gesture, dx, dy, input === 'mouse' ? 64 : 56)
+  const distance = input === 'mouse' ? 64 : 56
+  return gesture.axis === 'y'
+    ? isDirectedHorizontally(gesture, dy, dx, distance)
+    : isDirectedHorizontally(gesture, dx, dy, distance)
+}
+
+function fingerDistance([a, b]) {
+  return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY)
+}
+
+/** 两指间距发生明显变化就交给浏览器缩放，允许自然滑动产生的少量偏差。 */
+export function fingersSpreading(start, current) {
+  const before = fingerDistance(start)
+  return Math.abs(fingerDistance(current) - before) > Math.max(12, before * 0.15)
+}
+
+export function matchTwoFingerSwipe(gestures, start, current) {
+  if (fingersSpreading(start, current)) return
+  return gestures.find(gesture => current.every((point, index) => {
+    const before = start[index]
+    return matchesSwipe(gesture, point.clientX - before.clientX, point.clientY - before.clientY, 'touch')
+  }))
 }

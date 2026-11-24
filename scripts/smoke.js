@@ -9,6 +9,7 @@ import { setTimeout } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import { chromium } from 'playwright-core'
+import { seedHistory } from './history-fixture.js'
 import pkg from '../package.json' with { type: 'json' }
 
 const root = fileURLToPath(new URL('..', import.meta.url))
@@ -27,15 +28,23 @@ const plugin = (action, spec) => command(dsh, ['plugin', '--profile', 'web', act
 
 async function seedWorkspace() {
   const id = randomUUID()
+  const historyWorkspace = randomUUID()
   const path = join(home, 'Gesture Workspace')
+  const historyPath = join(home, 'History Workspace')
   const now = new Date().toISOString()
   await mkdir(path)
+  await mkdir(historyPath)
+  const historySession = await seedHistory(dsh, home, historyPath)
   await mkdir(join(home, 'storages'))
   await writeFile(join(home, 'storages', 'workspace.json'), JSON.stringify({
     unit: { name: 'workspace', version: 2 },
-    global: { initialized: true, workspaceIds: [id], archivedSessionIds: [], pinnedSessionIds: [], defaultWorkspaceId: id },
-    tables: { workspaces: { [id]: { path, title: 'Gesture Workspace', sessionIds: [], createdAt: now, updatedAt: now } } },
+    global: { initialized: true, workspaceIds: [id, historyWorkspace], archivedSessionIds: [], pinnedSessionIds: [], defaultWorkspaceId: id },
+    tables: { workspaces: {
+      [id]: { path, title: 'Gesture Workspace', sessionIds: [], createdAt: now, updatedAt: now },
+      [historyWorkspace]: { path: historyPath, title: 'History Workspace', sessionIds: [historySession], createdAt: now, updatedAt: now },
+    } },
   }))
+  return historySession
 }
 
 function waitForWeb(child) {
@@ -57,7 +66,7 @@ let child
 let exited
 let browser
 try {
-  await seedWorkspace()
+  const historySession = await seedWorkspace()
   child = spawn(dsh, ['web', '--no-open', '--port', '0'], { cwd: root, env, stdio: ['ignore', 'pipe', 'inherit'] })
   exited = once(child, 'close')
   const url = await waitForWeb(child)
@@ -90,11 +99,11 @@ try {
     await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
   }
 
-  async function rightDrag(x, y, dx, hold = false) {
+  async function rightDrag(x, y, dx, dy = 0, hold = false) {
     await page.mouse.move(x, y)
     await page.mouse.down({ button: 'right' })
     if (hold) await setTimeout(165)
-    await page.mouse.move(x + dx, y)
+    await page.mouse.move(x + dx, y + dy)
     await page.mouse.up({ button: 'right' })
     await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))
   }
@@ -119,7 +128,7 @@ try {
     }
     await page.getByRole('button', { name: 'Plugins', exact: true }).click()
     await page.locator(`[data-plugin-package="${pkg.name}"] button`).first().click()
-    await page.getByRole('group', { name: 'Sidebar gestures' }).waitFor()
+    await page.getByRole('group', { name: 'Gesture settings' }).waitFor()
   }
 
   await nativeOpener.waitFor()
@@ -228,7 +237,13 @@ try {
   const wide = page.getByRole('switch', { name: 'Enable on wide screens' })
   const openLeft = page.getByRole('switch', { name: 'Open left sidebar' })
   assert.equal(await wide.getAttribute('aria-checked'), 'false')
-  await page.getByText('Open left sidebar', { exact: true }).click()
+  assert.ok(await openLeft.evaluate(button => {
+    const row = button.parentElement
+    const bounds = row.getBoundingClientRect()
+    return getComputedStyle(row).justifyContent === 'space-between'
+      && button.getBoundingClientRect().left > bounds.left + bounds.width / 2
+  }), '设置应使用原生标题在左、开关在右的行')
+  await openLeft.click()
   assert.equal(await openLeft.getAttribute('aria-checked'), 'false')
   await tapSwipe(45, 355, 105)
   await leftIs(false)
@@ -244,7 +259,7 @@ try {
   await rightDrag(45, 574, 120)
   await leftIs(false)
   await wide.click()
-  await rightDrag(43, 574, 0, true)
+  await rightDrag(43, 574, 0, 0, true)
   await leftIs(false)
   await rightDrag(43, 574, 12)
   await leftIs(false)
@@ -380,6 +395,79 @@ try {
   await page.mouse.up({ button: 'right' })
   await leftIs(false)
 
+  const olderPages = []
+  page.on('request', request => {
+    if (new URL(request.url()).pathname !== '/api/session/page') return
+    const pageRequest = request.postDataJSON()?.payload?.args?.request
+    if (pageRequest?.address?.sessionId === historySession && pageRequest.beforeSeq !== undefined) olderPages.push(pageRequest.beforeSeq)
+  })
+  await nativeLeftToggle.click()
+  const historyRow = page.locator(`[data-row-key="session:${historySession}"]`)
+  if (!await historyRow.isVisible()) await page.getByText('History Workspace', { exact: true }).click()
+  await historyRow.click()
+  const history = page.locator(`[data-conversation-session="${historySession}"] [data-conversation-scroll]:visible`)
+  const earliest = history.getByText('Gesture fixture message 76', { exact: true })
+  const previousPage = history.getByText('Gesture fixture message 26', { exact: true })
+  const loadEarlier = history.getByRole('button', { name: 'Load earlier', exact: true })
+  const backToBottom = history.getByRole('button', { name: 'Back to bottom', exact: true })
+  await earliest.waitFor({ state: 'attached' })
+  await history.locator('[data-chat-following-tail]').waitFor()
+  assert.equal(await previousPage.count(), 0)
+  const handle = await frame.locator('[data-side="sidebar"]:visible').boundingBox()
+  assert.ok(handle)
+  const dragX = handle.x + handle.width / 2
+  const dragY = handle.y + handle.height / 2
+  await rightDrag(dragX, dragY, 0, -110)
+  await backToBottom.waitFor()
+  await loadEarlier.waitFor()
+  assert.ok(await history.evaluate(element => element.scrollTop <= 1))
+  assert.equal(olderPages.length, 0)
+  assert.equal(await previousPage.count(), 0)
+  await loadEarlier.click()
+  await previousPage.waitFor({ state: 'attached' })
+  assert.equal(olderPages.length, 1)
+  await rightDrag(dragX, dragY, 0, 110)
+  await history.locator('[data-chat-following-tail]').waitFor()
+
+  await page.setViewportSize({ width: 390, height: 760 })
+  await page.waitForFunction(() => document.querySelector('[data-sidebar-drawer]') !== null)
+  async function twoFingerSwipe(dy, spread = 0) {
+    const points = step => {
+      const separation = spread * Math.max(0, (step - 0.2) / 0.8)
+      return [
+        { id: 0, x: 140 - separation, y: 430 + dy * step },
+        { id: 1, x: 224 + separation, y: 435 + dy * step },
+      ]
+    }
+    await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: points(0) })
+    for (let step = 1; step <= 5; step++) {
+      await touch.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: points(step / 5) })
+    }
+    await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+  }
+  const scaleBeforePinch = await page.evaluate(() => visualViewport.scale)
+  await twoFingerSwipe(-105, 45)
+  await history.locator('[data-chat-following-tail]').waitFor()
+  await page.waitForFunction(scale => visualViewport.scale > scale, scaleBeforePinch)
+  await touch.send('Emulation.setPageScaleFactor', { pageScaleFactor: scaleBeforePinch })
+  await twoFingerSwipe(-110)
+  await backToBottom.waitFor()
+  await loadEarlier.waitFor()
+  await page.waitForFunction(sessionId => document.querySelector(
+    `[data-conversation-session="${sessionId}"] [data-conversation-scroll]`,
+  )?.scrollTop <= 1, historySession)
+  assert.equal(olderPages.length, 1)
+  await twoFingerSwipe(110)
+  await history.locator('[data-chat-following-tail]').waitFor()
+  const historyEditor = history.locator('[contenteditable="true"]').first()
+  await historyEditor.fill('Gesture fixture new message')
+  await historyEditor.press('Enter')
+  await history.getByText('Gesture fixture new message', { exact: true }).waitFor()
+  assert.ok(await history.evaluate(element => element.scrollHeight - element.clientHeight - element.scrollTop <= 2))
+
+  await page.setViewportSize({ width: 1400, height: 860 })
+  await page.waitForFunction(() => document.querySelector('[data-sidebar-drawer]') === null)
+
   await showPluginSettings()
   await plugin('remove', pkg.name)
   await wide.waitFor({ state: 'detached' })
@@ -388,7 +476,7 @@ try {
   await leftIs(false)
   assert.equal(child.exitCode, null)
   assert.deepEqual(errors, [])
-  console.log('DSH Web 验收通过。已验证触屏手势与事件取消、宽屏右键轨迹、菜单优先、设置及热卸载。')
+  console.log('DSH Web 验收通过。已验证会话定位、手动分页、双指捏合、侧栏手势、原生设置行及热卸载。')
 } finally {
   await browser?.close()
   if (child && child.exitCode === null) {
