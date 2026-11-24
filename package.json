@@ -1,0 +1,37 @@
+{
+  "name": "dsh-gestures",
+  "version": "0.1.0",
+  "description": "DeepSeek Harness 左侧导航和右侧工具栏手势",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.9.0",
+    "dsh": ">=0.2.3-alpha.2"
+  },
+  "exports": {
+    ".": "./src/host.js",
+    "./client": "./dist/client.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true
+    }
+  },
+  "scripts": {
+    "build": "node scripts/build.js",
+    "test": "node --test",
+    "test:web": "node scripts/smoke.js",
+    "package:plugin": "npm run build && node scripts/package.js"
+  },
+  "files": ["dist/client.js", "src/host.js", "cordis.patch.yml", "manual/"],
+  "devDependencies": {
+    "esbuild": "0.27.0",
+    "playwright-core": "1.64.1"
+  }
+}
