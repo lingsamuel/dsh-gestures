@@ -28,17 +28,18 @@ export function installInput(ctx, preferences) {
     pending = { ...candidate, target, x, y, input }
   }
 
-  function stillAvailable(active) {
+  function stillAvailable(active, gesture) {
     const { target, x, input } = active
     const next = candidateAt(ctx, preferences.getSnapshot(), target, x, input)
-    return next && next.frame === active.frame && next.gesture === active.gesture && next.narrow === active.narrow
+    return next && next.frame === active.frame && next.narrow === active.narrow
       && next.rightSession === active.rightSession && next.leftOpen === active.leftOpen && next.rightOpen === active.rightOpen
+      && (gesture === undefined || next.gestures.includes(gesture))
   }
 
-  function qualifies(active, point) {
+  function qualifies(active, gesture, point) {
     const dx = point.clientX - active.x
     const dy = point.clientY - active.y
-    return matchesSwipe(active.gesture, dx, dy, active.input)
+    return matchesSwipe(gesture, dx, dy, active.input)
   }
 
   function onTouchStart(event) {
@@ -57,12 +58,12 @@ export function installInput(ctx, preferences) {
     if (!active || event.touches.length !== 1 || touch.identifier !== active.touchId || !event.cancelable) return cancel()
     const dx = touch.clientX - active.x
     const dy = touch.clientY - active.y
-    if (!active.claimed) {
+    if (!active.gesture) {
       if (Math.hypot(dx, dy) < TOUCH_INTENT_DISTANCE) return
-      if (!isDirectedHorizontally(active.gesture, dx, dy, TOUCH_INTENT_DISTANCE)) return cancel()
+      active.gesture = active.gestures.find(gesture => isDirectedHorizontally(gesture, dx, dy, TOUCH_INTENT_DISTANCE))
+      if (!active.gesture) return cancel()
     }
-    if (!stillAvailable(active)) return cancel()
-    active.claimed = true
+    if (!stillAvailable(active, active.gesture)) return cancel()
     event.preventDefault()
   }
 
@@ -71,7 +72,8 @@ export function installInput(ctx, preferences) {
     const touch = event.changedTouches[0]
     if (active?.input !== 'touch' || touch?.identifier !== active.touchId) return
     cancel()
-    if (active.claimed && qualifies(active, touch) && stillAvailable(active)) togglePanel(ctx, active.gesture)
+    const gesture = active.gesture
+    if (gesture && qualifies(active, gesture, touch) && stillAvailable(active, gesture)) togglePanel(ctx, gesture)
   }
 
   function onMouseDown(event) {
@@ -82,7 +84,8 @@ export function installInput(ctx, preferences) {
   function onMouseUp(event) {
     const active = pending
     if (active?.input !== 'mouse' || event.button !== 2) return
-    if (!qualifies(active, event) || !stillAvailable(active)) return cancel()
+    const gesture = active.gestures.find(gesture => qualifies(active, gesture, event))
+    if (!gesture || !stillAvailable(active, gesture)) return cancel()
 
     // 部分浏览器先发 mouseup，再派发同次右键的 contextmenu。让页面先完成菜单处理。
     releaseFrame = window.requestAnimationFrame(() => {
@@ -90,7 +93,7 @@ export function installInput(ctx, preferences) {
       const pageHandled = active.menuEvent && (!active.menuReachedWindow
         || active.menuEvent.defaultPrevented && !active.browserMenuSuppressed)
       cancel()
-      if (!pageHandled && stillAvailable(active)) togglePanel(ctx, active.gesture)
+      if (!pageHandled && stillAvailable(active, gesture)) togglePanel(ctx, gesture)
     })
   }
 

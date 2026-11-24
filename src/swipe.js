@@ -3,26 +3,26 @@ const closeLeft = { key: 'closeLeft', side: 'left', direction: -1, open: false }
 const openRight = { key: 'openRight', side: 'right', direction: -1, open: true }
 const closeRight = { key: 'closeRight', side: 'right', direction: 1, open: false }
 
-/** 打开手势避开系统返回手势通常使用的屏幕最外侧。 */
-export function edgeAt(x, width) {
-  if (x >= 24 && x <= 64) return 'left'
-  if (width - x >= 24 && width - x <= 64) return 'right'
-}
+const EDGE_WIDTH = 64
 
-/** 从起点只选一个原生动作，避免两栏同时接收同一条手势。 */
-export function selectGesture(origin, edge, { leftOpen, rightOpen, overlay }) {
+/** 对每个方向最多保留一个动作。正文里两个动作同向时，取靠近起点的一侧。 */
+export function selectGestures(origin, x, width, { leftOpen, rightOpen, overlay, leftAvailable, rightAvailable }) {
+  const left = leftAvailable ? (leftOpen ? closeLeft : openLeft) : undefined
+  const right = rightAvailable ? (rightOpen ? closeRight : openRight) : undefined
   if (overlay === 'left') {
-    if (origin === 'left' || origin === 'mask') return closeLeft
-    return
+    return left && (origin === 'left' || origin === 'mask') ? [left] : []
   }
   if (overlay === 'right') {
-    if (origin === 'right') return closeRight
-    return
+    return right && origin === 'right' ? [right] : []
   }
-  if (origin === 'left' && leftOpen) return closeLeft
-  if (origin === 'right' && rightOpen) return closeRight
-  if (!leftOpen && edge === 'left') return openLeft
-  if (!rightOpen && edge === 'right') return openRight
+  if (origin === 'left' && leftOpen) return left ? [left] : []
+  if (origin === 'right' && rightOpen) return right ? [right] : []
+  if (x <= EDGE_WIDTH) return left ? [left] : []
+  if (width - x <= EDGE_WIDTH) return right ? [right] : []
+  if (left && right && left.direction === right.direction) {
+    return [x < width / 2 ? left : right]
+  }
+  return [left, right].filter(Boolean)
 }
 
 export function isDirectedHorizontally(gesture, dx, dy, distance) {

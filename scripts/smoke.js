@@ -118,7 +118,7 @@ try {
 
   await nativeOpener.waitFor()
   assert.equal(await frame.getAttribute('data-sidebar-drawer'), 'true')
-  await tapSwipe(44, 355, 110)
+  await tapSwipe(170, 355, 110)
   await leftIs(true)
   await tapSwipe(225, 450, -130)
   await leftIs(false)
@@ -132,7 +132,7 @@ try {
   await workspace.click()
   if (await frame.getAttribute('data-sidebar-collapsed') === null) await nativeLeftToggle.click()
   await openRight.waitFor()
-  await tapSwipe(347, 365, -115)
+  await tapSwipe(200, 365, -115)
   await rightOpen.waitFor()
   const tab = rightOpen.locator('[data-dockkit-tab]:visible').first()
   const tabId = await tab.getAttribute('data-dockkit-tab')
@@ -223,7 +223,7 @@ try {
   await leftIs(false)
   await rightDrag(43, 574, 12)
   await leftIs(false)
-  await rightDrag(43, 574, 120)
+  await rightDrag(500, 574, 120)
   await leftIs(true)
   // 在 Linux Chromium 的真实按下顺序之外，覆盖松开后才分发菜单事件的平台顺序。
   const handledLateMenu = await page.evaluate(async () => {
@@ -243,7 +243,7 @@ try {
   })
   assert.equal(handledLateMenu, true)
   await leftIs(true)
-  await rightDrag(205, 574, -120)
+  await rightDrag(430, 574, -120)
   await leftIs(false)
   await tapSwipe(43, 574, 110)
   await leftIs(true)

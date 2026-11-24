@@ -1,4 +1,6 @@
-import { edgeAt, selectGesture } from './swipe.js'
+import { selectGestures } from './swipe.js'
+
+const SYSTEM_EDGE_INSET = 24
 
 const interactive = [
   'input', 'textarea', 'select', '[contenteditable]:not([contenteditable="false"])', '[role="textbox"]',
@@ -46,11 +48,13 @@ export function candidateAt(ctx, preferences, target, x, input) {
   else if (leftColumn?.contains(target)) origin = 'left'
   else if (rightPanel?.contains(target)) origin = 'right'
 
-  const gesture = selectGesture(origin, edgeAt(x, window.innerWidth), { leftOpen, rightOpen, overlay })
-  if (!gesture || !preferences[gesture.key]) return
-  if ((gesture.side === 'left' && !leftToggle) || (gesture.side === 'right' && !rightPanel)) return
-  if (scrollsHorizontally(target, frame)) return
-  return { gesture, frame, narrow, rightSession, leftOpen, rightOpen }
+  const width = window.innerWidth
+  const atSystemEdge = input === 'touch' && Math.min(x, width - x) < SYSTEM_EDGE_INSET
+  const gestures = selectGestures(origin, x, width, {
+    leftOpen, rightOpen, overlay, leftAvailable: Boolean(leftToggle), rightAvailable: Boolean(rightPanel),
+  }).filter(gesture => preferences[gesture.key] && !(atSystemEdge && gesture.open))
+  if (gestures.length === 0 || scrollsHorizontally(target, frame)) return
+  return { gestures, frame, narrow, rightSession, leftOpen, rightOpen }
 }
 
 /** 保持原生动画、焦点交接与右侧标签状态。 */
