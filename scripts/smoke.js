@@ -90,7 +90,7 @@ try {
     await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
   }
 
-  async function rightDrag(x, y, dx, hold = true) {
+  async function rightDrag(x, y, dx, hold = false) {
     await page.mouse.move(x, y)
     await page.mouse.down({ button: 'right' })
     if (hold) await setTimeout(165)
@@ -219,11 +219,9 @@ try {
   await rightDrag(45, 574, 120)
   await leftIs(false)
   await wide.click()
-  await rightDrag(43, 574, 0)
+  await rightDrag(43, 574, 0, true)
   await leftIs(false)
   await rightDrag(43, 574, 12)
-  await leftIs(false)
-  await rightDrag(43, 574, 120, false)
   await leftIs(false)
   await rightDrag(43, 574, 120)
   await leftIs(true)
@@ -232,7 +230,6 @@ try {
     const target = document.elementFromPoint(205, 574)
     const start = { bubbles: true, cancelable: true, button: 2, clientX: 205, clientY: 574 }
     target.dispatchEvent(new MouseEvent('mousedown', { ...start, buttons: 2 }))
-    await new Promise(resolve => setTimeout(resolve, 165))
     target.dispatchEvent(new MouseEvent('mouseup', { ...start, clientX: 85 }))
     let handled = false
     target.addEventListener('contextmenu', event => {

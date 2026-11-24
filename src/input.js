@@ -25,7 +25,7 @@ export function installInput(ctx, preferences) {
     const { clientX: x, clientY: y } = point
     const candidate = candidateAt(ctx, preferences.getSnapshot(), target, x, input)
     if (!candidate) return
-    pending = { ...candidate, target, x, y, input, started: event.timeStamp }
+    pending = { ...candidate, target, x, y, input }
   }
 
   function stillAvailable(active) {
@@ -35,10 +35,10 @@ export function installInput(ctx, preferences) {
       && next.rightSession === active.rightSession && next.leftOpen === active.leftOpen && next.rightOpen === active.rightOpen
   }
 
-  function qualifies(active, point, endTime) {
+  function qualifies(active, point) {
     const dx = point.clientX - active.x
     const dy = point.clientY - active.y
-    return matchesSwipe(active.gesture, dx, dy, endTime - active.started, active.input)
+    return matchesSwipe(active.gesture, dx, dy, active.input)
   }
 
   function onTouchStart(event) {
@@ -71,7 +71,7 @@ export function installInput(ctx, preferences) {
     const touch = event.changedTouches[0]
     if (active?.input !== 'touch' || touch?.identifier !== active.touchId) return
     cancel()
-    if (active.claimed && qualifies(active, touch, event.timeStamp) && stillAvailable(active)) togglePanel(ctx, active.gesture)
+    if (active.claimed && qualifies(active, touch) && stillAvailable(active)) togglePanel(ctx, active.gesture)
   }
 
   function onMouseDown(event) {
@@ -82,7 +82,7 @@ export function installInput(ctx, preferences) {
   function onMouseUp(event) {
     const active = pending
     if (active?.input !== 'mouse' || event.button !== 2) return
-    if (!qualifies(active, event, event.timeStamp) || !stillAvailable(active)) return cancel()
+    if (!qualifies(active, event) || !stillAvailable(active)) return cancel()
 
     // 部分浏览器先发 mouseup，再派发同次右键的 contextmenu。让页面先完成菜单处理。
     releaseFrame = window.requestAnimationFrame(() => {

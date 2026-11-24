@@ -23,19 +23,18 @@ test('窄屏覆盖层只接受当前栏的收起手势', () => {
   assert.equal(selectGesture(undefined, 'left', right), undefined)
 })
 
-test('只有距离、方向、时长都合格的右键拖动才触发', () => {
+test('右键拖动按横向距离和方向判定', () => {
   const gesture = selectGesture(undefined, 'right', { leftOpen: false, rightOpen: false })
-  assert.equal(matchesSwipe(gesture, -64, 0, 150, 'mouse'), true)
-  assert.equal(matchesSwipe(gesture, -64, 43, 150, 'mouse'), false)
-  assert.equal(matchesSwipe(gesture, -63, 0, 300, 'mouse'), false)
-  assert.equal(matchesSwipe(gesture, -64, 0, 149, 'mouse'), false)
-  assert.equal(matchesSwipe(gesture, 64, 0, 300, 'mouse'), false)
-  assert.equal(matchesSwipe(gesture, 0, 0, 500, 'mouse'), false)
+  assert.equal(matchesSwipe(gesture, -64, 0, 'mouse'), true)
+  assert.equal(matchesSwipe(gesture, -64, 43, 'mouse'), false)
+  assert.equal(matchesSwipe(gesture, -63, 0, 'mouse'), false)
+  assert.equal(matchesSwipe(gesture, 64, 0, 'mouse'), false)
+  assert.equal(matchesSwipe(gesture, 0, 0, 'mouse'), false)
 })
 
 test('触屏快速滑动可触发，但轻扫和反向滑动忽略', () => {
   const gesture = selectGesture(undefined, 'left', { leftOpen: false, rightOpen: false })
-  assert.equal(matchesSwipe(gesture, 60, 12, 100, 'touch'), true)
-  assert.equal(matchesSwipe(gesture, 20, 12, 100, 'touch'), false)
-  assert.equal(matchesSwipe(gesture, -80, 4, 200, 'touch'), false)
+  assert.equal(matchesSwipe(gesture, 60, 12, 'touch'), true)
+  assert.equal(matchesSwipe(gesture, 20, 12, 'touch'), false)
+  assert.equal(matchesSwipe(gesture, -80, 4, 'touch'), false)
 })

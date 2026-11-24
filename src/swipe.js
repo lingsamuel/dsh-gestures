@@ -29,8 +29,7 @@ export function isDirectedHorizontally(gesture, dx, dy, distance) {
   return dx * gesture.direction >= Math.max(distance, Math.abs(dy) * 1.5)
 }
 
-/** 触屏允许快速滑动，鼠标还要累计按住一段时间来区分右键单击。 */
-export function matchesSwipe(gesture, dx, dy, elapsed, input) {
-  const mouse = input === 'mouse'
-  return (!mouse || elapsed >= 150) && isDirectedHorizontally(gesture, dx, dy, mouse ? 64 : 56)
+/** 距离和方向足以区分滑动与轻微位移，快速手势也能触发。 */
+export function matchesSwipe(gesture, dx, dy, input) {
+  return isDirectedHorizontally(gesture, dx, dy, input === 'mouse' ? 64 : 56)
 }
