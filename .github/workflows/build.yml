@@ -1,0 +1,81 @@
+name: Build
+
+on: push
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '26.13.1'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      archive: ${{ steps.package.outputs.archive }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - name: Build plugin archive
+        id: package
+        run: |
+          name=$(node -p 'require("./package.json").name')
+          version=$(node -p 'require("./package.json").version')
+          if [[ "$GITHUB_REF_TYPE" == tag && "${GITHUB_REF_NAME#v}" != "$version" ]]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match package version $version"
+            exit 1
+          fi
+          # npm 可信发布会核对安装包中的仓库地址。
+          npm pkg set repository.type=git "repository.url=git+${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git"
+          npm run package:plugin
+          printf 'archive=%s-%s.tgz\n' "$name" "$version" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dsh-gestures
+          path: artifacts/${{ steps.package.outputs.archive }}
+          if-no-files-found: error
+
+  publish-npm:
+    needs: build
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          registry-url: 'https://registry.npmjs.org'
+          package-manager-cache: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: dsh-gestures
+          path: artifacts
+      - run: npm publish "./artifacts/$ARCHIVE" --access public
+        env:
+          ARCHIVE: ${{ needs.build.outputs.archive }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  github-release:
+    needs: build
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: dsh-gestures
+          path: artifacts
+      - run: gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes "artifacts/$ARCHIVE"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARCHIVE: ${{ needs.build.outputs.archive }}

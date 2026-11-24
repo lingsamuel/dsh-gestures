@@ -1,8 +1,7 @@
 {
   "name": "dsh-gestures",
-  "version": "0.2.0",
+  "version": "0.1.0",
   "description": "DeepSeek Harness 侧栏与会话滚动手势",
-  "private": true,
   "type": "module",
   "engines": {
     "node": ">=24.9.0",
