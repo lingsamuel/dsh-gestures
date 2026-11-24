@@ -4,7 +4,7 @@ const SYSTEM_EDGE_INSET = 24
 
 const interactive = [
   'input', 'textarea', 'select', '[contenteditable]:not([contenteditable="false"])', '[role="textbox"]',
-  '[role="slider"]', '[draggable="true"]', '[data-dockkit-float]', '[data-dockkit-divider]',
+  '[role="slider"]', '[data-dockkit-float]', '[data-dockkit-divider]',
   '[data-side="sidebar"]', '[data-side="rightbar"]', '[data-width-handle]', 'iframe', 'canvas',
 ].join(', ')
 
@@ -24,8 +24,8 @@ function hasOtherOverlay(leftDrawer) {
 export function candidateAt(ctx, preferences, target, x, input) {
   const frame = document.querySelector('[data-rightbar-col]')?.parentElement
   if (!frame || !frame.contains(target) || target.closest(interactive)) return
-  // Dockkit 的标签以主指针按下开始拖动，右键仍交给它自己的菜单。
-  if (input === 'touch' && target.closest('[data-dockkit-tab]')) return
+  // 原生拖放与 Dockkit 标签使用主指针，鼠标右键由页面菜单决定是否接管。
+  if (input === 'touch' && target.closest('[draggable="true"], [data-dockkit-tab]')) return
   const narrow = frame.hasAttribute('data-sidebar-drawer')
   if ((!preferences.wide && !narrow) || (input === 'mouse' && narrow)) return
 
@@ -52,8 +52,8 @@ export function candidateAt(ctx, preferences, target, x, input) {
   const atSystemEdge = input === 'touch' && Math.min(x, width - x) < SYSTEM_EDGE_INSET
   const gestures = selectGestures(origin, x, width, {
     leftOpen, rightOpen, overlay, leftAvailable: Boolean(leftToggle), rightAvailable: Boolean(rightPanel),
-  }).filter(gesture => preferences[gesture.key] && !(atSystemEdge && gesture.open))
-  if (gestures.length === 0 || scrollsHorizontally(target, frame)) return
+  }, input).filter(gesture => preferences[gesture.key] && !(atSystemEdge && gesture.open))
+  if (gestures.length === 0 || (input === 'touch' && scrollsHorizontally(target, frame))) return
   return { gestures, frame, narrow, rightSession, leftOpen, rightOpen }
 }
 

@@ -127,6 +127,24 @@ try {
   await tapSwipe(347, 365, -120)
   await leftIs(false)
 
+  // 浏览器可能取消 Pointer Events，但仍继续交付同一根手指的 Touch Events。
+  await page.evaluate(() => {
+    const target = document.elementFromPoint(170, 355)
+    function dispatch(type, clientX, cancelable = true) {
+      const point = new Touch({ identifier: 17, target, clientX, clientY: 355 })
+      target.dispatchEvent(new TouchEvent(type, {
+        bubbles: true, cancelable, touches: type === 'touchend' ? [] : [point], changedTouches: [point],
+      }))
+    }
+    dispatch('touchstart', 170)
+    target.dispatchEvent(new PointerEvent('pointercancel', { bubbles: true, pointerType: 'touch' }))
+    dispatch('touchmove', 285, false)
+    dispatch('touchend', 285)
+  })
+  await leftIs(true)
+  await nativeLeftToggle.click()
+  await leftIs(false)
+
   await nativeOpener.click()
   const workspace = page.getByText('Gesture Workspace', { exact: true }).first()
   await workspace.click()
@@ -223,7 +241,20 @@ try {
   await leftIs(false)
   await rightDrag(43, 574, 12)
   await leftIs(false)
-  await rightDrag(500, 574, 120)
+  const trail = page.locator('[data-dsh-gestures-trail]')
+  await page.mouse.move(500, 574)
+  await page.mouse.down({ button: 'right' })
+  assert.equal(await trail.count(), 0)
+  await page.mouse.move(540, 578)
+  await trail.waitFor()
+  assert.ok(await trail.evaluate(canvas => {
+    const scale = canvas.width / innerWidth
+    return getComputedStyle(canvas).pointerEvents === 'none'
+      && canvas.getContext('2d').getImageData(Math.round(520 * scale), Math.round(576 * scale), 1, 1).data[3] > 0
+  }), '轨迹应绘制真实鼠标位移，且不拦截点击')
+  await page.mouse.move(620, 574)
+  await page.mouse.up({ button: 'right' })
+  await trail.waitFor({ state: 'detached' })
   await leftIs(true)
   // 在 Linux Chromium 的真实按下顺序之外，覆盖松开后才分发菜单事件的平台顺序。
   const handledLateMenu = await page.evaluate(async () => {
@@ -245,6 +276,14 @@ try {
   await leftIs(true)
   await rightDrag(430, 574, -120)
   await leftIs(false)
+  await page.mouse.move(500, 574)
+  await page.mouse.down({ button: 'right' })
+  await page.mouse.move(610, 574)
+  await trail.waitFor()
+  await page.evaluate(() => window.dispatchEvent(new Event('blur')))
+  await trail.waitFor({ state: 'detached' })
+  await page.mouse.up({ button: 'right' })
+  await leftIs(false)
   await tapSwipe(43, 574, 110)
   await leftIs(true)
   await tapSwipe(205, 574, -120)
@@ -265,13 +304,22 @@ try {
   assert.ok(tabBox)
   await tapSwipe(tabBox.x + tabBox.width / 2, tabBox.y + tabBox.height / 2, 80)
   await rightOpen.waitFor()
-  await rightDrag(tabBox.x + tabBox.width / 2, tabBox.y + tabBox.height / 2, 95)
+  await page.mouse.move(tabBox.x + tabBox.width / 2, tabBox.y + tabBox.height / 2)
+  await page.mouse.down({ button: 'right' })
+  await page.mouse.move(tabBox.x + tabBox.width / 2 + 95, tabBox.y + tabBox.height / 2)
+  assert.equal(await trail.count(), 0, 'DSH 菜单接管后不应绘制轨迹')
+  await page.mouse.up({ button: 'right' })
   await rightOpen.waitFor()
   await page.locator('[data-context-menu]:visible').waitFor()
   await page.keyboard.press('Escape')
   await page.locator('[data-context-menu]:visible').waitFor({ state: 'hidden' })
-  await rightDrag(1275, 570, 95)
+  const sidebarChrome = await nativeLeftToggle.evaluate(button => {
+    const rect = button.closest('[data-window-drag]').getBoundingClientRect()
+    return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 }
+  })
+  await rightDrag(sidebarChrome.x, sidebarChrome.y, 95)
   await rightOpen.waitFor({ state: 'hidden' })
+  await leftIs(true)
 
   await showPluginSettings()
   await plugin('remove', pkg.name)
@@ -281,7 +329,7 @@ try {
   await leftIs(false)
   assert.equal(child.exitCode, null)
   assert.deepEqual(errors, [])
-  console.log('DSH Web 验收通过。已验证安装包、四条触屏手势、设置、宽屏右键、原生菜单优先及热卸载。')
+  console.log('DSH Web 验收通过。已验证触屏手势与事件取消、宽屏右键轨迹、菜单优先、设置及热卸载。')
 } finally {
   await browser?.close()
   if (child && child.exitCode === null) {

@@ -16,7 +16,7 @@ const dictionaries = {
     closeRight: '收起右侧工具栏',
     wide: '在宽屏启用',
     directions: '从正文或靠近侧栏的一侧横滑可展开。在栏内反向滑可收起。',
-    wideHelp: '宽屏支持触屏滑动和鼠标右键拖动。DSH 右键菜单优先。',
+    wideHelp: '宽屏支持触屏滑动和鼠标右键拖动。右键拖动时显示轨迹，DSH 菜单优先。',
   },
   en: {
     title: 'Sidebar gestures',
@@ -26,7 +26,7 @@ const dictionaries = {
     closeRight: 'Close right toolbar',
     wide: 'Enable on wide screens',
     directions: 'Swipe in the content area or near a sidebar edge to open it. Swipe in the opposite direction inside it to close.',
-    wideHelp: 'Wide screens support touch swipes and right-button mouse drags. DSH context menus take priority.',
+    wideHelp: 'Wide screens support touch swipes and show a trail during right-button mouse drags. DSH context menus take priority.',
   },
 }
 

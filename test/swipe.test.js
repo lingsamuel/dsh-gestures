@@ -21,6 +21,12 @@ test('正文中的同向动作按起点选边，一条手势只作用于一栏',
   assert.equal(selectGestures(undefined, 1000, 1400, { ...leftOpen, rightAvailable: false })[0]?.key, 'closeLeft')
 })
 
+test('宽屏鼠标在栏内也能执行另一侧的有效方向', () => {
+  const bothOpen = { ...closed, leftOpen: true, rightOpen: true }
+  assert.deepEqual(selectGestures('left', 180, 1400, bothOpen, 'mouse').map(gesture => gesture.key), ['closeLeft', 'closeRight'])
+  assert.deepEqual(selectGestures('left', 180, 1400, { ...bothOpen, rightOpen: false }, 'mouse').map(gesture => gesture.key), ['closeLeft'])
+})
+
 test('窄屏覆盖层只接受当前栏的收起手势', () => {
   const left = { ...closed, leftOpen: true, overlay: 'left' }
   const right = { ...closed, rightOpen: true, overlay: 'right' }
