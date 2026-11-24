@@ -1,6 +1,6 @@
 {
   "name": "dsh-gestures",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "DeepSeek Harness 左侧导航和右侧工具栏手势",
   "private": true,
   "type": "module",

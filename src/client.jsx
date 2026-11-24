@@ -41,23 +41,18 @@ function readPreferences() {
   }
 }
 
-const row = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: '8px 0' }
-const help = { color: 'var(--dsw-alias-label-secondary)', fontSize: 12, lineHeight: 1.5, margin: '2px 0 0' }
-
 function GestureSettings({ preferences, change, t }) {
   const values = useSyncExternalStore(preferences.subscribe, preferences.getSnapshot)
   return <div role="group" aria-label={t('title')}>
-    <p style={help}>{t('directions')}</p>
-    {Object.keys(defaultPreferences).map(key => <div key={key} style={row}>
-      <div>
-        <div>{t(key)}</div>
-        {key === 'wide' && <p id="dsh-gestures-wide-help" style={help}>{t('wideHelp')}</p>}
-      </div>
-      <div style={{ flex: 'none' }}>
+    <p>{t('directions')}</p>
+    {Object.keys(defaultPreferences).map(key => <p key={key}>
+      <label>
         <Switch label={t(key)} checked={values[key]} describedBy={key === 'wide' ? 'dsh-gestures-wide-help' : undefined}
           onChange={checked => change(key, checked)} />
-      </div>
-    </div>)}
+        {' '}{t(key)}
+      </label>
+    </p>)}
+    <p id="dsh-gestures-wide-help">{t('wideHelp')}</p>
   </div>
 }
 
